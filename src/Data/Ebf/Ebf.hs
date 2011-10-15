@@ -8,11 +8,12 @@ import Data.Iteratee
 import qualified Data.Iteratee.ListLike as I
 import Data.ListLike
 import Data.Word
-import Data.ByteString
+import Data.ByteString as BS
+import Control.DeepSeq
 
-class Ebf a where
+class (NFData a) => Ebf a where
   encode :: a -> Builder
-  decode :: (ListLike s Word8, Nullable s, Monad m) => Iteratee s m a
+  decode :: Monad m => Iteratee BS.ByteString m a
 
 class Typehash a where
   typehashCRC32 :: a -> Word32

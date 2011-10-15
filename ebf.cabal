@@ -52,12 +52,14 @@ Library
                  , Data.Ebf.Ebf
                  , Data.Ebf.Derive
   Build-depends:   base
+                 , text
                  , ListLike
                  , blaze-builder
                  , iteratee
                  , mtl
                  , bytestring
                  , template-haskell
+                 , deepseq
   
   -- Packages needed in order to build this package.
   -- Build-depends:       

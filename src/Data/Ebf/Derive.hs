@@ -1,6 +1,7 @@
 {-# LANGUAGE TemplateHaskell #-}
 module Data.Ebf.Derive where
 
+import Data.Word
 import Data.Monoid
 import Control.Monad
 import Control.Applicative
@@ -87,8 +88,37 @@ mkDecode tyName cons = valD (varP 'decode) (normalB getCopyBody) []
       getter = if length cons <=255
                  then varE 'I.head
                  else appE
-                        (varE 'endianRead2)
-                        (conE 'MSB)
+                        (appE
+                          (appE
+                            (varE 'liftM2)
+                            (do a <- newName "high"
+                                b <- newName "low"
+                                lamE
+                                  [ varP a, varP b ]
+                                  (infixApp
+                                    (infixApp
+                                      (sigE 
+                                        (appE
+                                          (varE 'fromIntegral)
+                                          (varE a)
+                                        )
+                                        (conT ''Word16) -- Type annotation !
+                                      )
+                                      (varE '(*))
+                                      (litE $ IntegerL 256)
+                                    )
+                                    (varE '(+))
+                                    (appE
+                                      (varE 'fromIntegral)
+                                      (varE b)
+                                    )
+                                  )
+                            )
+                          )
+                          (varE 'I.head)
+                        )
+                        (varE 'I.head)
+
       getCopyBody = infixApp
                       getter
                       (varE '(>>=))
@@ -104,13 +134,21 @@ mkDecode tyName cons = valD (varP 'decode) (normalB getCopyBody) []
                                                         (\arg-> bindS (varP arg) (varE 'decode))
                                                         args
                                                       ++
-                                                      [ noBindS $ appE
-                                                                    (varE 'return)
-                                                                    (foldl
-                                                                      appE
-                                                                      (conE $ conName con)
-                                                                      (map varE args)
+                                                      [ noBindS $ foldr -- strictness!
+                                                                    (\m n-> infixApp
+                                                                              m
+                                                                              (varE 'seq)
+                                                                              n
                                                                     )
+                                                                    (appE
+                                                                      (varE 'return)
+                                                                      (foldl
+                                                                        appE
+                                                                        (conE $ conName con)
+                                                                        (map varE args)
+                                                                      )
+                                                                    )
+                                                                    (map varE args)
                                                       ]
                                                     )
                                   )
