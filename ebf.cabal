@@ -52,6 +52,8 @@ Library
                  , Data.Ebf.Ebf
                  , Data.Ebf.Derive
   Build-depends:   base
+                 , digest
+                 , filepath
                  , text
                  , ListLike
                  , blaze-builder

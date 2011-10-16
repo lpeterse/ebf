@@ -1,4 +1,4 @@
-{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TemplateHaskell, ScopedTypeVariables #-}
 module Data.Ebf.Derive where
 
 import Data.Word
@@ -12,6 +12,74 @@ import Data.Iteratee.Binary
 import qualified Data.Iteratee.ListLike as I
 
 import Data.Ebf.Ebf
+
+deriveTypehash    :: Name -> Word64 -> Q [Dec]
+deriveTypehash n s = fingerprintDecl
+                     where
+                       instanceWrapper value tyvars context fpdecl
+                         = return <$> instanceD
+                                        (cxt $ [classP ''Typehash [varT v] | PlainTV v <- tyvars ] ++ map return context)
+                                        (conT ''Typehash `appT` foldl
+                                                                  appT
+                                                                  (conT n)
+                                                                  [ varT v | PlainTV v <- tyvars ]
+                                        )
+                                        [ funD 'fingerprint $ return $ (flip $ clause [varP value]) [] $ normalB fpdecl ]
+
+                       fingerprintDecl
+                         = do i <- reify n
+                              value <- newName "value"
+                              case i of
+                                TyConI (DataD context _ tvs cons _) -> instanceWrapper value tvs context $
+                                                                        infixApp
+                                                                          (appE
+                                                                            (varE 'fromWord64be)
+                                                                            (litE $ integerL $ fromIntegral s)
+                                                                          )
+                                                                          (varE 'mappend)
+                                                                          (appE
+                                                                            (varE 'mconcat)
+                                                                            (listE $ map 
+                                                                                      (hashCon value)
+                                                                                      cons
+                                                                            )
+                                                                          )
+                                TyConI (NewtypeD context _ tvs con _) -> instanceWrapper value tvs context $
+                                                                         infixApp
+                                                                          (appE
+                                                                            (varE 'fromWord64be)
+                                                                            (litE $ integerL $ fromIntegral s)
+                                                                          )
+                                                                          (varE 'mappend)
+                                                                          (hashCon value con)
+                       hashCon  :: Name -> Con -> ExpQ
+                       hashCon value c 
+                                 = infixApp
+                                     (appE
+                                       (varE 'fromWord16be)
+                                       (litE $ integerL $ fromIntegral $ conSize c) 
+                                     )
+                                     (varE 'mappend)
+                                     (do vs <- mapM (const $ newName "v") (conTypes c)
+                                         letE
+                                           [ valD
+                                               ( conP (conName c) $ map varP vs )
+                                               ( normalB $ infixApp
+                                                             (varE 'undefined)
+                                                             (varE 'asTypeOf)
+                                                             (varE value) 
+                                               )
+                                               []
+                                           ]
+                                           (appE
+                                             (varE 'mconcat)
+                                             (listE $ map 
+                                                       (\x-> appE (varE 'fingerprint) (varE x))
+                                                       vs
+                                             )
+                                           )
+                                     )
+
 
 deriveEbf  :: Name -> Q [Dec]
 deriveEbf n = reify n >>= \i-> case i of
