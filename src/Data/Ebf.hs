@@ -44,21 +44,22 @@ ebfV1Signature  = BS.pack [0x1b, 0x5b, 0x31, 0x3b,
 typehashCRC32 :: (Typehash a) => a -> Word32
 typehashCRC32  = const 0 -- crc32 . toLazyByteString . fingerprint
 
-writeEbfV1    :: (Typehash a, Ebf a) => FilePath -> a -> IO ()
+writeEbfV1    :: (Ebf a) => FilePath -> a -> IO ()
 writeEbfV1 p a = do file  <- openFile p WriteMode
                     toByteStringIO 
                       (BS.hPutStr file)
-                      (fromByteString ebfV1Signature `mappend` encode (typehashCRC32 a) `mappend` encode a)
+                      --(fromByteString ebfV1Signature `mappend` encode (typehashCRC32 a) `mappend` encode a)
+                      (fromByteString ebfV1Signature `mappend`         mempty            `mappend` encode a)
                     hClose file
 
-readEbfV1     :: forall a . (Typehash a, Ebf a) => FilePath -> IO a
+readEbfV1     :: forall a . (Ebf a) => FilePath -> IO a
 readEbfV1 p    = fileDriverVBuf 65536 (iter :: Iteratee BS.ByteString IO a) p
                where
                  iter = do sig <- joinI $ I.take 16 stream2stream
                            if sig /= ebfV1Signature
                              then fail "This is not an Ebf version 1 file"
-                             else do fp <- decode
-                                     if typehashCRC32 (undefined :: a) /=  fp
+                             else do -- fp <- decode
+                                     if False --typehashCRC32 (undefined :: a) /=  fp
                                        then fail "typestructure mismatch"
                                        else decode
 
